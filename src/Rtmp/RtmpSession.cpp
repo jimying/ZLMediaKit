@@ -72,12 +72,14 @@ void RtmpSession::onRecv(const Buffer::Ptr &buf) {
 
 void RtmpSession::onCmd_connect(AMFDecoder &dec) {
     auto params = dec.load<AMFValue>();
+    GET_CONFIG(uint32_t, chunk_size, Rtmp::kChunkSize);
+    GET_CONFIG(uint32_t, band_width, Rtmp::kBandWidth);
     ///////////set chunk size////////////////
-    sendChunkSize(60000);
+    sendChunkSize(chunk_size);
     ////////////window Acknowledgement size/////
-    sendAcknowledgementSize(5000000);
+    sendAcknowledgementSize(band_width);
     ///////////set peerBandwidth////////////////
-    sendPeerBandwidth(5000000);
+    sendPeerBandwidth(band_width);
 
     auto tc_url = params["tcUrl"].as_string();
     if (tc_url.empty()) {

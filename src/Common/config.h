@@ -452,6 +452,10 @@ extern const std::string kDirectProxy;
 // h265-rtmp是否采用增强型(或者国内扩展)  [AUTO-TRANSLATED:4a52d042]
 // Whether h265-rtmp uses enhanced (or domestic extension)
 extern const std::string kEnhanced;
+// rtmp chunk size
+extern const std::string kChunkSize;
+// rtmp band width
+extern const std::string kBandWidth;
 } // namespace Rtmp
 
 // //////////RTP配置///////////  [AUTO-TRANSLATED:23cbcb86]

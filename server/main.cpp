@@ -252,7 +252,9 @@ int start_main(int argc,char *argv[]) {
 
         // 设置日志  [AUTO-TRANSLATED:50372045]
         // Set log
+#ifndef NDEBUG
         Logger::Instance().add(std::make_shared<ConsoleChannel>("ConsoleChannel", logLevel));
+#endif
 #if !defined(ANDROID)
         auto fileChannel = std::make_shared<FileChannel>("FileChannel", cmd_main["log-dir"], logLevel);
         // 日志最多保存天数  [AUTO-TRANSLATED:9bfa8a9a]
