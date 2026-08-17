@@ -33,9 +33,9 @@
 
 #define RTP_SSRC_OFFSET 1
 #define RTX_SSRC_OFFSET 2
-#define RTP_CNAME "zlmediakit-rtp"
-#define RTP_LABEL "zlmediakit-label"
-#define RTP_MSLABEL "zlmediakit-mslabel"
+#define RTP_CNAME "lms-rtp"
+#define RTP_LABEL "lms-label"
+#define RTP_MSLABEL "lms-mslabel"
 
 using namespace std;
 
