@@ -1229,7 +1229,7 @@ void WebRtcTransportImp::onRtcp(const char *buf, size_t len) {
                 } else {
                     // 设置rtp时间戳与ntp时间戳的对应关系  [AUTO-TRANSLATED:e92f4749]
                     // Set the correspondence between rtp timestamp and ntp timestamp
-                    rtp_chn->setNtpStamp(sr->rtpts, sr->getNtpUnixStampMS());
+                    // rtp_chn->setNtpStamp(sr->rtpts, sr->getNtpUnixStampMS());
                     rtp_chn->onRtcp(sr);
                 }
             } else {
@@ -1338,6 +1338,7 @@ void WebRtcTransportImp::createRtpChannel(const string &rid, uint32_t ssrc, Medi
             }
         });
     InfoL << "create rtp receiver of ssrc:" << ssrc << ", rid:" << rid << ", codec:" << track.plan_rtp->codec;
+    ref->setNtpStamp(0, 0);
 }
 
 void WebRtcTransportImp::updateTicker() {
