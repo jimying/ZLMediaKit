@@ -10,6 +10,7 @@
 
 #include <signal.h>
 #include <iostream>
+#include <set>
 #include "Util/File.h"
 #include "Util/logger.h"
 #include "Util/SSLBox.h"
@@ -230,6 +231,27 @@ string g_ini_file;
 // 加载ssl证书函数对象
 std::function<void()> g_reload_certificates;
 
+#if defined(ENABLE_WEBRTC)
+static UdpServer::Ptr new_rtc_udpsrv(const std::string &listen_ip, uint16_t port)
+{
+    auto rtcSrv_udp = std::make_shared<UdpServer>();
+    rtcSrv_udp->setOnCreateSocket([](const EventPoller::Ptr &poller, const Buffer::Ptr &buf, struct sockaddr *, int) {
+        if (!buf) {
+            return Socket::createSocket(poller, false);
+        }
+        auto new_poller = WebRtcSession::queryPoller(buf);
+        if (!new_poller) {
+            // 该数据对应的webrtc对象未找到，丢弃之  [AUTO-TRANSLATED:d401f8cb]
+            // The webrtc object corresponding to this data is not found, discard it
+            return Socket::Ptr();
+        }
+        return Socket::createSocket(new_poller, false);
+    });
+    rtcSrv_udp->start<WebRtcSession>(port, listen_ip);
+    return rtcSrv_udp;
+}
+#endif
+
 int start_main(int argc,char *argv[]) {
     {
         CMD_main cmd_main;
@@ -369,23 +391,8 @@ int start_main(int argc,char *argv[]) {
 #endif//defined(ENABLE_RTPPROXY)
 
 #if defined(ENABLE_WEBRTC)
+        std::list<UdpServer::Ptr> rtc_ulist;
         auto rtcSrv_tcp = std::make_shared<TcpServer>();
-        // webrtc udp服务器  [AUTO-TRANSLATED:157a64e5]
-        // webrtc udp server
-        auto rtcSrv_udp = std::make_shared<UdpServer>();
-        rtcSrv_udp->setOnCreateSocket([](const EventPoller::Ptr &poller, const Buffer::Ptr &buf, struct sockaddr *, int) {
-            if (!buf) {
-                return Socket::createSocket(poller, false);
-            }
-            auto new_poller = WebRtcSession::queryPoller(buf);
-            if (!new_poller) {
-                // 该数据对应的webrtc对象未找到，丢弃之  [AUTO-TRANSLATED:d401f8cb]
-                // The webrtc object corresponding to this data is not found, discard it
-                return Socket::Ptr();
-            }
-            return Socket::createSocket(new_poller, false);
-        });
-        
         auto signaleSrv = std::make_shared<TcpServer>();
         auto signalsSrv = std::make_shared<TcpServer>();
         auto iceTcpSrv = std::make_shared<TcpServer>();
@@ -457,10 +464,31 @@ int start_main(int argc,char *argv[]) {
 #if defined(ENABLE_WEBRTC)
             // webrtc udp服务器  [AUTO-TRANSLATED:157a64e5]
             // webrtc udp server
-            if (rtcPort) { rtcSrv_udp->start<WebRtcSession>(rtcPort, listen_ip);}
+            if (rtcPort) {
+                if (listen_ip == "::") {
+                    std::set<std::string> ips;
+                    auto interfaces = SockUtil::getInterfaceList();
+                    for (auto &obj : interfaces) {
+                        std::string ip = obj["ip"];
+                        if (ip.length() > 2 && ip.back() == '1') {
+                            // ignore ipv4 end with ".1" or ipv6 "::1"
+                            const char *end = ip.c_str() + ip.length();
+                            char c2 = *(end - 2), c3 = *(end - 3);
+                            if (c2 == '.' || (c2 == ':' && c3 == ':'))
+                                continue;
+                        }
+                        ips.insert(ip);
+                    }
+                    for (auto &ip : ips) {
+                        rtc_ulist.push_back(new_rtc_udpsrv(ip, rtcPort));
+                    }
+                } else {
+                    rtc_ulist.push_back(new_rtc_udpsrv(listen_ip, rtcPort));
+                }
+            }
 
             if (rtcTcpPort) { rtcSrv_tcp->start<WebRtcSession>(rtcTcpPort, listen_ip);}
-             
+
             //webrtc 信令服务器
             if (signalingPort) { signaleSrv->start<WebRtcWebcosktSignalingSession>(signalingPort);}
             if (signalSslPort) { signalsSrv->start<WebRtcWebcosktSignalSslSession>(signalSslPort);}
@@ -541,5 +569,3 @@ int main(int argc,char *argv[]) {
     return start_main(argc,argv);
 }
 #endif //DISABLE_MAIN
-
-
