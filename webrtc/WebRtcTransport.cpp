@@ -988,11 +988,14 @@ void WebRtcTransportImp::onCheckAnswer(RtcSession &sdp) {
         translateIPFromEnv(ret);
         return ret;
     });
+#if 0  // no need update sdp ip/port. ice-lite mode, sdp contains a=candidate already enough
     for (auto &m : sdp.media) {
         m.addr.reset();
         m.addr.address = extern_ips.empty() ? _local_ip.empty() ? SockUtil::get_local_ip() : _local_ip : extern_ips[0];
+        m.addr.addrtype = (m.addr.address.find(':') != std::string::npos ? "IP6" : "IP4");
         m.rtcp_addr.reset();
         m.rtcp_addr.address = m.addr.address;
+        m.rtcp_addr.addrtype = m.addr.addrtype;
 
         GET_CONFIG(uint16_t, udp_port, Rtc::kPort);
         GET_CONFIG(uint16_t, tcp_port, Rtc::kTcpPort);
@@ -1001,7 +1004,9 @@ void WebRtcTransportImp::onCheckAnswer(RtcSession &sdp) {
             m.rtcp_addr.port = m.port;
         }
         sdp.origin.address = m.addr.address;
+        sdp.origin.addrtype = m.addr.addrtype;
     }
+#endif
 
     if (!canSendRtp()) {
         // 设置我们发送的rtp的ssrc  [AUTO-TRANSLATED:3704484a]
