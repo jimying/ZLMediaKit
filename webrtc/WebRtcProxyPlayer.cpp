@@ -44,6 +44,8 @@ void WebRtcProxyPlayer::play(const string &strUrl) {
 void WebRtcProxyPlayer::teardown() {
     DebugL;
     doBye();
+    WebRtcPlayerClient::Ptr transport = std::dynamic_pointer_cast<WebRtcPlayerClient>(_transport);
+    transport->safeShutdown(SockException(Err_shutdown, "teardown.."));
 }
 
 void WebRtcProxyPlayer::pause(bool bPause) {
