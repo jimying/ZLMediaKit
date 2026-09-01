@@ -1109,8 +1109,12 @@ void IceAgent::connectivityCheck(CandidateInfo& candidate) {
     auto ret = _remote_candidates.emplace(candidate);
     if (ret.second) {
         bool udp = candidate._transport == CandidateTuple::TransportType::UDP;
+        bool v4 = SockUtil::is_ipv4(candidate._addr._host.c_str());
         for (auto& socket : _socket_candidate_manager._host_sockets) {
             if (udp != (socket->getSock()->sockType() == SockNum::Sock_UDP)) {
+                continue;
+            }
+            if (v4 != (socket->get_local_addr()->sa_family == AF_INET)) {
                 continue;
             }
             auto pair = std::make_shared<Pair>(socket, candidate._addr._host, candidate._addr._port);
