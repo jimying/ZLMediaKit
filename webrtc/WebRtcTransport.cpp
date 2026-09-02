@@ -415,6 +415,14 @@ void WebRtcTransport::onIceTransportCompleted() {
         return true;
     }, getPoller());
 
+    if (_rtc_encrypt == false) {
+        onStartWebRTC();
+        if (_on_start) {
+            _on_start();
+        }
+        return;
+    }
+
     if ((getRole() == Role::PEER && _answer_sdp->media[0].role == DtlsRole::passive)
         || (getRole() == Role::CLIENT && _answer_sdp->media[0].role == DtlsRole::active)) {
         _dtls_transport->Run(RTC::DtlsTransport::Role::SERVER);
@@ -664,7 +672,7 @@ void WebRtcTransport::setRemoteDtlsFingerprint(SdpType type, const RtcSession &r
 void WebRtcTransport::onRtcConfigure(RtcConfigure &configure) const {
     SdpAttrFingerprint fingerprint;
     fingerprint.algorithm = _offer_sdp ? _offer_sdp->media[0].fingerprint.algorithm : "sha-256";
-    fingerprint.hash = getFingerprint(fingerprint.algorithm, _dtls_transport);
+    fingerprint.hash = _rtc_encrypt ? getFingerprint(fingerprint.algorithm, _dtls_transport) : "";
     configure.setDefaultSetting(_ice_agent->getUfrag(), _ice_agent->getPassword(), RtpDirection::sendrecv, fingerprint);
 
     // 开启remb后关闭twcc，因为开启twcc后remb无效  [AUTO-TRANSLATED:8a8feca2]
@@ -691,6 +699,7 @@ std::string WebRtcTransport::createOfferSdp() {
     try {
         RtcConfigure configure;
         onRtcConfigure(configure);
+        configure.enableSrtp(_rtc_encrypt);
         _offer_sdp = configure.createOffer();
         return _offer_sdp->toString();
     } catch (exception &ex) {
@@ -712,7 +721,9 @@ std::string WebRtcTransport::getAnswerSdp(const string &offer) {
         // // sdp 配置 ////  [AUTO-TRANSLATED:718a72e2]
         // // sdp configuration ////
         RtcConfigure configure;
+        _rtc_encrypt = _offer_sdp->isEncrypt();
         onRtcConfigure(configure);
+        configure.enableSrtp(_rtc_encrypt);
 
         // // 生成answer sdp ////  [AUTO-TRANSLATED:a139475e]
         // // Generate answer sdp ////
@@ -767,6 +778,10 @@ void WebRtcTransport::inputSockData(const char *buf, int len, const IceTransport
         return;
     }
     if (isRtp(buf, len)) {
+        if (!_rtc_encrypt) {
+            onRtp(buf, len, _ticker.createdTime());
+            return;
+        }
         if (!_srtp_session_recv) {
             WarnL << "received rtp packet when dtls not completed from:" << pair->get_peer_ip();
             return;
@@ -777,6 +792,10 @@ void WebRtcTransport::inputSockData(const char *buf, int len, const IceTransport
         return;
     }
     if (isRtcp(buf, len)) {
+        if (!_rtc_encrypt) {
+            onRtcp(buf, len);
+            return;
+        }
         if (!_srtp_session_recv) {
             WarnL << "received rtcp packet when dtls not completed from:" << pair->get_peer_ip();
             return;
@@ -789,14 +808,14 @@ void WebRtcTransport::inputSockData(const char *buf, int len, const IceTransport
 }
 
 void WebRtcTransport::sendRtpPacket(const char *buf, int len, bool flush, void *ctx) {
-    if (_srtp_session_send) {
+    if (_srtp_session_send || !_rtc_encrypt) {
         auto pkt = _packet_pool.obtain2();
         // 预留rtx加入的两个字节  [AUTO-TRANSLATED:d1eb5cd7]
         // Reserve two bytes for rtx joining
         pkt->setCapacity((size_t)len + SRTP_MAX_TRAILER_LEN + 2);
         memcpy(pkt->data(), buf, len);
         onBeforeEncryptRtp(pkt->data(), len, ctx);
-        if (_srtp_session_send->EncryptRtp(reinterpret_cast<uint8_t *>(pkt->data()), &len)) {
+        if (!_rtc_encrypt || _srtp_session_send->EncryptRtp(reinterpret_cast<uint8_t *>(pkt->data()), &len)) {
             pkt->setSize(len);
             onSendSockData(std::move(pkt), flush);
         }
@@ -804,14 +823,14 @@ void WebRtcTransport::sendRtpPacket(const char *buf, int len, bool flush, void *
 }
 
 void WebRtcTransport::sendRtcpPacket(const char *buf, int len, bool flush, void *ctx) {
-    if (_srtp_session_send) {
+    if (_srtp_session_send || !_rtc_encrypt) {
         auto pkt = _packet_pool.obtain2();
         // 预留rtx加入的两个字节  [AUTO-TRANSLATED:d1eb5cd7]
         // Reserve two bytes for rtx joining
         pkt->setCapacity((size_t)len + SRTP_MAX_TRAILER_LEN + 2);
         memcpy(pkt->data(), buf, len);
         onBeforeEncryptRtcp(pkt->data(), len, ctx);
-        if (_srtp_session_send->EncryptRtcp(reinterpret_cast<uint8_t *>(pkt->data()), &len)) {
+        if (!_rtc_encrypt || _srtp_session_send->EncryptRtcp(reinterpret_cast<uint8_t *>(pkt->data()), &len)) {
             pkt->setSize(len);
             onSendSockData(std::move(pkt), flush);
         }
